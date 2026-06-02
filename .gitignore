@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+.venv/
+
+/data/README.md
+
+# Project-local docs
+project_requirements.md
+
+# uv lock (optional: remove this line if you want to commit it)
+# uv.lock

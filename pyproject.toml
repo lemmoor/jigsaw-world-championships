@@ -1,0 +1,9 @@
+[project]
+name = "jigsaw-world-championships"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "dash>=4.1.0",
+    "pandas>=3.0.3",
+]

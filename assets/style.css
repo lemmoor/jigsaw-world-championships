@@ -163,8 +163,14 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
+}
+
+.sidebar-sticky {
   position: sticky;
   top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .detail-empty {

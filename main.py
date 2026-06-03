@@ -268,10 +268,24 @@ def results_tab():
                     ),
                     html.Div(
                         className="split-side",
-                        children=html.Div(id="results-detail", className="detail-card",
-                                          children=html.P("Round summary appears "
-                                                          "here.",
-                                                          className="detail-empty")),
+                        children=html.Div(
+                            className="sidebar-sticky",
+                            children=[
+                                html.Div(id="results-detail", className="detail-card",
+                                         children=html.P("Round summary appears "
+                                                         "here.",
+                                                         className="detail-empty")),
+                                html.Div(className="detail-card", children=[
+                                    html.H4("Elimination funnel",
+                                            style={"margin": "0 0 8px 0",
+                                                   "fontSize": "0.9rem",
+                                                   "color": PRIMARY}),
+                                    dcc.Graph(id="res-funnel",
+                                              config={"displayModeBar": False},
+                                              style={"height": "220px"}),
+                                ]),
+                            ],
+                        ),
                     ),
                 ],
             ),
@@ -332,6 +346,7 @@ def countries_tab():
                                 {"label": "Medals (top-3 finals)", "value": "medals"},
                                 {"label": "Finalists", "value": "finalists"},
                                 {"label": "Best finish time", "value": "best_time"},
+                                {"label": "Average finish time", "value": "avg_time"},
                             ],
                             value="medals", clearable=False,
                             style={"width": "230px"}),
@@ -442,36 +457,7 @@ def times_tab():
 
 # ── Tab 4: Careers (trajectory + per-round table) ─────────────────────────────
 
-# ── Tab 5: Progression (funnel + gap scatter) ─────────────────────────────────
-
-def progression_tab():
-    return html.Div(
-        className="page-content",
-        children=[
-            html.H2("Tournament progression"),
-            html.P("Follow the field from group rounds down to the final. Click a "
-                   "point in the scatter to inspect that finalist.",
-                   className="tab-intro"),
-            html.Div(
-                className="controls-bar",
-                children=[
-                    category_control("prog-category"),
-                    year_control("prog-year"),
-                ],
-            ),
-            html.Div(className="chart-grid", children=[
-                html.Div(className="chart-card", children=[
-                    html.H3("Elimination funnel"),
-                    dcc.Graph(id="prog-funnel")]),
-                html.Div(className="chart-card", children=[
-                    html.H3("Final: rank vs. finish time"),
-                    dcc.Graph(id="prog-scatter")]),
-            ]),
-            html.Div(id="prog-detail", className="detail-card",
-                     children=html.P("Click a finalist in the scatter for details.",
-                                     className="detail-empty")),
-        ],
-    )
+# ── Tab 5: Progression — removed; funnel moved to Results sidebar ──────────────
 
 
 # ── Tab 6: About ──────────────────────────────────────────────────────────────
@@ -496,11 +482,9 @@ def about_tab():
             ]),
             html.H3("Using the tabs"),
             html.Ul([
-                html.Li("Results — full round tables; click a row to see the puzzle."),
+                html.Li("Results — full round tables with elimination funnel; click a row to see the puzzle."),
                 html.Li("Countries — map and ranking; click a country to focus it."),
                 html.Li("Times — finish-time spread and did-not-finish rates."),
-                html.Li("Careers — one competitor's path across the years."),
-                html.Li("Progression — the elimination funnel and the final's spread."),
             ]),
             html.H3("Reading the data"),
             html.P("A row is a did-not-finish (DNF) when it has a piece count "
@@ -528,7 +512,6 @@ TABS = [
     ("Results", "tab-results"),
     ("Countries", "tab-countries"),
     ("Times", "tab-times"),
-    ("Progression", "tab-progression"),
     ("About", "tab-about"),
 ]
 
@@ -553,7 +536,6 @@ def render_tab(tab):
         "tab-results": results_tab,
         "tab-countries": countries_tab,
         "tab-times": times_tab,
-        "tab-progression": progression_tab,
         "tab-about": about_tab,
     }[tab]()
 
@@ -791,11 +773,16 @@ def country_stats(category, year, metric):
     elif metric == "finalists":
         agg = finals.groupby("country").size().rename("value").reset_index()
         title = "Finalist appearances"
-    else:  # best_time
+    elif metric == "best_time":
         fin = finals.dropna(subset=["time_seconds"])
         agg = fin.groupby("country")["time_seconds"].min() \
             .rename("value").reset_index()
         title = "Best finish time (lower = better)"
+    else:  # avg_time
+        fin = finals.dropna(subset=["time_seconds"])
+        agg = fin.groupby("country")["time_seconds"].mean() \
+            .rename("value").reset_index()
+        title = "Average finish time (lower = better)"
     agg["iso3"] = agg["country"].map(COUNTRY_ISO3)
     agg = agg.dropna(subset=["iso3"])  # drop non-country entries from the map
     return agg, title
@@ -816,7 +803,7 @@ def update_country_map(category, year, metric):
         fig = px.choropleth(
             agg, locations="iso3", locationmode="ISO-3",
             color="value", hover_name="country",
-            color_continuous_scale=SEQ if metric != "best_time" else SEQ[::-1],
+            color_continuous_scale=SEQ if metric not in ("best_time", "avg_time") else SEQ[::-1],
         )
     fig.update_layout(
         title=title, margin=dict(l=0, r=0, t=40, b=0),
@@ -840,7 +827,7 @@ def update_country_bar(category, year, metric, click):
         fig.add_annotation(text="No data for this selection", showarrow=False)
         fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), paper_bgcolor="white")
         return fig
-    ascending = metric == "best_time"
+    ascending = metric in ("best_time", "avg_time")
     agg = agg.sort_values("value", ascending=ascending).head(15)
     selected = None
     if click and click.get("points"):
@@ -854,12 +841,14 @@ def update_country_bar(category, year, metric, click):
     fig = go.Figure(go.Bar(
         x=agg["value"], y=agg["country"], orientation="h",
         marker_color=colors,
-        text=[fmt_time(v) for v in agg["value"]] if metric == "best_time"
+        text=[fmt_time(v) for v in agg["value"]] if metric in ("best_time", "avg_time")
         else agg["value"],
     ))
     fig.update_layout(
         title=f"Top countries — {title}",
-        yaxis=dict(autorange="reversed"), margin=dict(l=10, r=10, t=40, b=10),
+        yaxis=dict(autorange="reversed"),
+        xaxis=dict(visible=False),
+        margin=dict(l=10, r=10, t=40, b=10),
         paper_bgcolor="white", plot_bgcolor="white", height=480,
     )
     return fig
@@ -1140,14 +1129,14 @@ def toggle_lightbox(thumb_clicks, close_clicks, category, year, level):
     return no_update, no_update
 
 
-# ── Callbacks: Progression ────────────────────────────────────────────────────
+# ── Callbacks: Funnel (Results sidebar) ──────────────────────────────────────
 
 @callback(
-    Output("prog-funnel", "figure"),
-    Input("prog-category", "value"),
-    Input("prog-year", "value"),
+    Output("res-funnel", "figure"),
+    Input("res-category", "value"),
+    Input("res-year", "value"),
 )
-def update_funnel(category, year):
+def update_res_funnel(category, year):
     df = DATASETS[category]
     df = df[df["year"] == year].copy()
     df["bucket"] = df["stage"].map(stage_bucket)
@@ -1157,64 +1146,9 @@ def update_funnel(category, year):
     fig = go.Figure(go.Funnel(
         y=counts.index, x=counts.values,
         marker_color=ACCENT, textinfo="value+percent initial"))
-    fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="white")
+    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="white",
+                      font=dict(size=11))
     return fig
-
-
-@callback(
-    Output("prog-scatter", "figure"),
-    Input("prog-category", "value"),
-    Input("prog-year", "value"),
-)
-def update_scatter(category, year):
-    df = DATASETS[category]
-    df = df[(df["year"] == year) & (df["stage"] == "final")].copy()
-    df = df.dropna(subset=["time_seconds"])
-    if df.empty:
-        fig = go.Figure()
-        fig.add_annotation(text="No final-round finishers for this selection",
-                           showarrow=False)
-        fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="white")
-        return fig
-    df["minutes"] = df["time_seconds"] / 60
-    df["label"] = df.apply(lambda r: competitor_label(category, r), axis=1)
-    df["img"] = df.apply(lambda r: row_image_url(category, r) or "", axis=1)
-    df["gap_str"] = df["gap"].fillna("—")
-    fig = px.scatter(
-        df, x="rank", y="minutes", color="country", hover_name="label",
-        custom_data=["label", "country", "gap_str", "img", "rank", "time"],
-    )
-    fig.update_traces(marker=dict(size=11, line=dict(width=1, color="white")))
-    fig.update_layout(
-        xaxis_title="Rank", yaxis_title="Finish time (minutes)",
-        margin=dict(l=10, r=10, t=10, b=10),
-        paper_bgcolor="white", plot_bgcolor="white", legend_title="Country",
-    )
-    return fig
-
-
-@callback(
-    Output("prog-detail", "children"),
-    Input("prog-scatter", "clickData"),
-)
-def show_scatter_detail(click):
-    if not click or not click.get("points"):
-        return html.P("Click a finalist in the scatter for details.",
-                      className="detail-empty")
-    label, country, gap, img, rank, time = click["points"][0]["customdata"]
-    return html.Div(className="detail-row", children=[
-        (html.Img(src=img, className="detail-img-sm") if img
-         else html.Div("No image", className="detail-noimg")),
-        html.Div([
-            html.H3(label, className="detail-title"),
-            html.Table(className="detail-meta", children=[
-                html.Tr([html.Td("Country"), html.Td(str(country))]),
-                html.Tr([html.Td("Rank"), html.Td(str(rank))]),
-                html.Tr([html.Td("Time"), html.Td(str(time))]),
-                html.Tr([html.Td("Gap to 1st"), html.Td(str(gap or "—"))]),
-            ]),
-        ]),
-    ])
 
 
 if __name__ == "__main__":

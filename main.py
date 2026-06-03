@@ -153,9 +153,10 @@ def table_columns(category):
     else:
         cols = [("Rank", "rank"), ("Team", "team_name"), ("Members", "members"),
                 ("Country", "country")]
-    cols += [("Time", "time"), ("Gap", "gap"),
-             ("Pieces", "pieces_completed"), ("Qualified", "qualified")]
+    cols += [("Time", "time"), ("Gap", "gap"), ("Pieces", "pieces_completed")]
     spec = [{"name": n, "id": i} for n, i in cols]
+    spec.append({"name": "Qualified", "id": "qualified",
+                 "presentation": "markdown"})
     spec.append({"name": "Puzzle(s)", "id": "puzzles_md",
                  "presentation": "markdown"})
     return spec
@@ -258,11 +259,10 @@ def results_tab():
                                  "maxWidth": "none", "overflow": "visible",
                                  "minWidth": "90px"},
                             ],
+                            markdown_options={"html": True},
                             style_data_conditional=[
                                 {"if": {"row_index": "odd"},
                                  "backgroundColor": "#f8f9fa"},
-                                {"if": {"filter_query": "{qualified} = True"},
-                                 "backgroundColor": "#d4edda"},
                             ],
                         ),
                     ),
@@ -273,6 +273,32 @@ def results_tab():
                                                           "here.",
                                                           className="detail-empty")),
                     ),
+                ],
+            ),
+            html.Div(
+                id="results-career-section",
+                style={"display": "none"},
+                children=[
+                    html.Hr(),
+                    html.Div(
+                        style={"display": "flex", "alignItems": "center",
+                               "gap": "12px", "marginBottom": "4px"},
+                        children=[
+                            html.H4("Selected competitors — career trajectories",
+                                    style={"margin": "0"}),
+                            dcc.Dropdown(
+                                id="results-career-metric",
+                                options=[
+                                    {"label": "Rank", "value": "rank"},
+                                    {"label": "Finish time", "value": "time_seconds"},
+                                ],
+                                value="rank",
+                                clearable=False,
+                                style={"width": "140px", "fontSize": "0.85rem"},
+                            ),
+                        ],
+                    ),
+                    dcc.Graph(id="results-career-line"),
                 ],
             ),
             html.Div(id="results-lightbox", className="lightbox hidden", children=[
@@ -416,58 +442,6 @@ def times_tab():
 
 # ── Tab 4: Careers (trajectory + per-round table) ─────────────────────────────
 
-def careers_tab():
-    names = sorted(individual["name"].dropna().unique())
-    default = "Alejandro Clemente León" if "Alejandro Clemente León" in names \
-        else names[0]
-    return html.Div(
-        className="page-content",
-        children=[
-            html.H2("Competitor careers"),
-            html.P("Track a single competitor across every championship they "
-                   "entered (individual category).", className="tab-intro"),
-            html.Div(
-                className="controls-bar",
-                children=[
-                    html.Div([
-                        html.Div("Competitor", className="control-label"),
-                        dcc.Dropdown(
-                            id="career-name",
-                            options=[{"label": n, "value": n} for n in names],
-                            value=default, clearable=False, searchable=True,
-                            style={"width": "320px"}),
-                    ]),
-                    html.Div([
-                        html.Div("Metric", className="control-label"),
-                        dcc.Dropdown(
-                            id="career-metric",
-                            options=[{"label": "Finishing rank", "value": "rank"},
-                                     {"label": "Finish time",
-                                      "value": "time_seconds"}],
-                            value="rank", clearable=False, style={"width": "190px"}),
-                    ]),
-                ],
-            ),
-            html.Div(className="chart-card", children=[dcc.Graph(id="career-line")]),
-            html.H3("All rounds"),
-            dash_table.DataTable(
-                id="career-table",
-                columns=[{"name": n, "id": i} for n, i in [
-                    ("Year", "year"), ("Stage", "stage"), ("Rank", "rank"),
-                    ("Time", "time"), ("Country", "country"),
-                    ("Qualified", "qualified")]],
-                data=[], page_size=12, sort_action="native",
-                style_as_list_view=True,
-                style_cell={"fontFamily": '"Inter", "Segoe UI", sans-serif',
-                            "fontSize": "0.85rem", "padding": "8px 12px",
-                            "textAlign": "left"},
-                style_data_conditional=[
-                    {"if": {"row_index": "odd"}, "backgroundColor": "#f8f9fa"}],
-            ),
-        ],
-    )
-
-
 # ── Tab 5: Progression (funnel + gap scatter) ─────────────────────────────────
 
 def progression_tab():
@@ -541,14 +515,19 @@ def about_tab():
 # ── App ───────────────────────────────────────────────────────────────────────
 # IDs in tabs other than the default are created on demand by render_tab, so
 # Dash must allow callbacks that reference not-yet-rendered components.
-app = Dash(__name__, suppress_callback_exceptions=True)
+app = Dash(
+    __name__,
+    suppress_callback_exceptions=True,
+    external_stylesheets=[
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
+    ],
+)
 app.title = "Jigsaw World Championships"
 
 TABS = [
     ("Results", "tab-results"),
     ("Countries", "tab-countries"),
     ("Times", "tab-times"),
-    ("Careers", "tab-careers"),
     ("Progression", "tab-progression"),
     ("About", "tab-about"),
 ]
@@ -574,7 +553,6 @@ def render_tab(tab):
         "tab-results": results_tab,
         "tab-countries": countries_tab,
         "tab-times": times_tab,
-        "tab-careers": careers_tab,
         "tab-progression": progression_tab,
         "tab-about": about_tab,
     }[tab]()
@@ -601,6 +579,8 @@ def update_res_stages(category, year, current):
 @callback(
     Output("results-table", "data"),
     Output("results-table", "columns"),
+    Output("results-table", "row_selectable"),
+    Output("results-table", "selected_rows"),
     Input("res-category", "value"),
     Input("res-year", "value"),
     Input("res-stage", "value"),
@@ -614,7 +594,14 @@ def update_results_table(category, year, stage):
     for rec in records:
         rec["puzzles_md"] = " ".join(f"![]({u})"
                                      for u in row_image_urls(category, rec))
-    return records, table_columns(category)
+        if rec.get("stage") == "final":
+            rec["qualified"] = ""
+        elif rec.get("qualified") is True or rec.get("qualified") == "True":
+            rec["qualified"] = '<i class="fa-solid fa-circle-check" style="color:#27ae60"></i>'
+        else:
+            rec["qualified"] = '<i class="fa-solid fa-circle-xmark" style="color:#e74c3c"></i>'
+    row_selectable = "multi" if category == "individual" else False
+    return records, table_columns(category), row_selectable, []
 
 
 @callback(
@@ -716,6 +703,78 @@ def toggle_results_lightbox(active_cell, thumb_clicks, close_clicks,
         return "lightbox", [html.Img(src=u) for u in urls]
 
     return no_update, no_update
+
+
+@callback(
+    Output("results-career-section", "style"),
+    Output("results-career-line", "figure"),
+    Input("results-table", "selected_rows"),
+    Input("results-career-metric", "value"),
+    State("results-table", "data"),
+    State("res-category", "value"),
+)
+def update_results_career(selected_rows, metric, data, category):
+    hidden = {"display": "none"}
+    blank = go.Figure()
+    blank.update_layout(paper_bgcolor="white", plot_bgcolor="white",
+                        margin=dict(l=10, r=10, t=10, b=10))
+
+    if category != "individual" or not selected_rows or not data:
+        return hidden, blank
+
+    names = list(dict.fromkeys(
+        data[i]["name"] for i in selected_rows if i < len(data)
+    ))
+    df = individual[individual["name"].isin(names)].copy()
+    if df.empty:
+        return hidden, blank
+
+    bucket_order = {"Group rounds": 0, "Semi-finals": 1, "Final": 2}
+    df["bucket"] = df["stage"].map(stage_bucket)
+
+    if metric == "time_seconds":
+        col, agg, ytitle, reverse = "time_seconds", "min", "Finish time (minutes)", False
+    else:
+        col, agg, ytitle, reverse = "rank", "min", "Rank (lower = better)", True
+
+    plot = df.dropna(subset=[col]).copy()
+    if plot.empty:
+        return hidden, blank
+
+    plot = (plot.groupby(["name", "year", "bucket"], as_index=False)
+            .agg({col: agg, "stage": "first"}))
+    if metric == "time_seconds":
+        plot = plot.rename(columns={col: "time_min"})
+        plot["time_min"] = plot["time_min"] / 60
+        col = "time_min"
+    plot["bucket_order"] = plot["bucket"].map(bucket_order)
+    plot = plot.sort_values(["year", "bucket_order"])
+    plot["x"] = plot["year"].astype(str) + " · " + plot["bucket"]
+    x_order = list(dict.fromkeys(plot["x"]))
+
+    val_label = "Time (min)" if metric == "time_seconds" else "Rank"
+    val_fmt   = ".2f"        if metric == "time_seconds" else ".0f"
+
+    fig = px.line(plot, x="x", y=col, color="name", markers=True,
+                  category_orders={"x": x_order},
+                  custom_data=["name", "year", "stage", "bucket", col])
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "Year: %{customdata[1]}<br>"
+            "Stage: %{customdata[2]} (%{customdata[3]})<br>"
+            f"{val_label}: %{{customdata[4]:{val_fmt}}}<extra></extra>"
+        )
+    )
+    fig.update_layout(
+        xaxis_title=None, yaxis_title=ytitle,
+        legend_title=None,
+        margin=dict(l=10, r=10, t=30, b=10),
+        paper_bgcolor="white", plot_bgcolor="white",
+    )
+    if reverse:
+        fig.update_yaxes(autorange="reversed")
+    return {"display": "block"}, fig
 
 
 # ── Callbacks: Countries ──────────────────────────────────────────────────────
@@ -1079,52 +1138,6 @@ def toggle_lightbox(thumb_clicks, close_clicks, category, year, level):
         if url:
             return "lightbox", url
     return no_update, no_update
-
-
-# ── Callbacks: Careers ────────────────────────────────────────────────────────
-
-@callback(
-    Output("career-line", "figure"),
-    Output("career-table", "data"),
-    Input("career-name", "value"),
-    Input("career-metric", "value"),
-)
-def update_career(name, metric):
-    df = individual[individual["name"] == name].copy()
-    df["order"] = df.apply(
-        lambda r: (r["year"],) + stage_sort_key(r["stage"]), axis=1)
-    df = df.sort_values("order")
-    df["x"] = df["year"].astype(str) + " · " + df["stage"]
-
-    if metric == "time_seconds":
-        plot = df.dropna(subset=["time_seconds"]).copy()
-        plot["y"] = plot["time_seconds"] / 60
-        ytitle = "Finish time (minutes)"
-        reversed_axis = False
-    else:
-        plot = df.dropna(subset=["rank"]).copy()
-        plot["y"] = plot["rank"]
-        ytitle = "Rank (lower = better)"
-        reversed_axis = True
-
-    if plot.empty:
-        fig = go.Figure()
-        fig.add_annotation(text="No finish data for this competitor",
-                           showarrow=False)
-    else:
-        fig = px.line(plot, x="x", y="y", markers=True,
-                      color_discrete_sequence=[ACCENT])
-    fig.update_layout(
-        title=f"{name} — {ytitle}", xaxis_title=None, yaxis_title=ytitle,
-        margin=dict(l=10, r=10, t=50, b=10),
-        paper_bgcolor="white", plot_bgcolor="white",
-    )
-    if reversed_axis:
-        fig.update_yaxes(autorange="reversed")
-
-    table = df[["year", "stage", "rank", "time", "country", "qualified"]] \
-        .to_dict("records")
-    return fig, table
 
 
 # ── Callbacks: Progression ────────────────────────────────────────────────────

@@ -355,6 +355,7 @@ body {
   line-height: 1;
   cursor: pointer;
   font-weight: 300;
+  z-index: 10;
 }
 
 /* About page readability */

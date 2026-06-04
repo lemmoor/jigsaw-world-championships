@@ -13,8 +13,10 @@ def countries_tab():
         className="page-content",
         children=[
             html.H2("Countries"),
-            html.P("Where do the world's best puzzlers come from? Click a country "
-                   "on the map to focus the ranking.", className="tab-intro"),
+            html.P("Where do the world's best puzzlers come from? "
+                   "Switch between medals, finalist appearances, and finish times using the metric dropdown. "
+                   "Click a country on the map to highlight it in the ranking.",
+                   className="tab-intro"),
             html.Div(
                 className="controls-bar",
                 children=[

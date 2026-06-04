@@ -16,10 +16,11 @@ def results_tab():
         className="page-content",
         children=[
             html.H2("Round results"),
-            html.P("Browse the full results of any round. The Puzzle(s) column "
-                   "shows each row's puzzle photos; the panel on the right "
-                   "summarises the selected round. Click any puzzle to view it "
-                   "full-screen.", className="tab-intro"),
+            html.P("Browse results for any round across all five championships. "
+                   "The sidebar shows a round summary and elimination funnel. "
+                   "Click a puzzle thumbnail to view it full-screen. "
+                   "Select individual competitors to compare their career trajectories below.",
+                   className="tab-intro"),
             html.Div(
                 className="controls-bar",
                 children=[

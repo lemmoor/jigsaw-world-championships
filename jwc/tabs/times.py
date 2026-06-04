@@ -14,8 +14,8 @@ def times_tab():
         className="page-content",
         children=[
             html.H2("Finishing times"),
-            html.P("How fast and how complete are the solves? Times are only "
-                   "comparable within a category (puzzle sizes differ).",
+            html.P("Finish-time distributions and DNF rates by year and stage. "
+                   "Times are only comparable within a category since puzzle sizes differ.",
                    className="tab-intro"),
             html.Div(
                 className="controls-bar",
@@ -35,11 +35,9 @@ def times_tab():
 
             html.Hr(className="section-divider"),
             html.H2("Puzzle difficulty comparison"),
-            html.P("At a single elimination level, different puzzles are used "
-                   "(each group round has its own; in 2025 each round splits "
-                   "across two). Comparing their finish-time distributions and "
-                   "how many finished at all shows which puzzle was harder. "
-                   "Click a box to highlight its puzzle; click a puzzle to enlarge.",
+            html.P("Each group round uses its own puzzle; in 2025 individual group rounds, competitors "
+                   "could choose 1 of 2 puzzles. Click a violin or a bar to highlight that puzzle "
+                   "across both charts and the gallery. Click a thumbnail to enlarge.",
                    className="tab-intro"),
             html.Div(
                 className="controls-bar",

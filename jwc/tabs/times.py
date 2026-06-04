@@ -120,10 +120,21 @@ def update_time_dist(category, stage):
     df = df.dropna(subset=["time_seconds"]).copy()
     if df.empty:
         return blank_fig("No finishers for this selection")
-    df["minutes"] = df["time_seconds"] / 60
-    fig = px.violin(df, x="year", y="minutes", box=True, points=False)
-    fig.update_traces(fillcolor=_rgba(PRIMARY, 0.55), line_color=LINE_DARK,
-                      marker_color=PRIMARY)
+    fig = go.Figure()
+    for year in sorted(df["year"].unique()):
+        y = df[df["year"] == year]["time_seconds"] / 60
+        label = str(year)
+        if len(y) >= 5:
+            fig.add_trace(go.Violin(
+                y=y, name=label, fillcolor=_rgba(PRIMARY, 0.55),
+                box_visible=True, meanline_visible=False, points=False,
+                marker_color=PRIMARY,
+                line=dict(color=LINE_DARK, width=1.5)))
+        else:
+            fig.add_trace(go.Scatter(
+                x=[label] * len(y), y=list(y), name=label, mode="markers",
+                marker=dict(color=PRIMARY, size=10,
+                            line=dict(color=LINE_DARK, width=2))))
     style_fig(fig, y_title="Finish time (minutes)", categorical_x=True,
               show_legend=False)
     return fig
@@ -200,11 +211,18 @@ def _violin_figure(df, order, selected):
         y = (df[df["puzzle_label"] == label]["time_seconds"].dropna() / 60)
         sel = label == selected
         base = ACCENT if sel else PRIMARY
-        fig.add_trace(go.Violin(
-            y=y, name=label, fillcolor=_rgba(base, 0.55),
-            box_visible=True, meanline_visible=False, points=False,
-            marker_color=base,
-            line=dict(color=ACCENT if sel else LINE_DARK, width=3 if sel else 1.5)))
+        if len(y) >= 5:
+            fig.add_trace(go.Violin(
+                y=y, name=label, fillcolor=_rgba(base, 0.55),
+                box_visible=True, meanline_visible=False, points=False,
+                marker_color=base,
+                line=dict(color=ACCENT if sel else LINE_DARK, width=3 if sel else 1.5)))
+        else:
+            # Too few points for a meaningful violin; show individual markers
+            fig.add_trace(go.Scatter(
+                x=[label] * len(y), y=list(y), name=label, mode="markers",
+                marker=dict(color=base, size=10,
+                            line=dict(color=ACCENT if sel else LINE_DARK, width=2))))
     style_fig(fig, x_title="Puzzle", y_title="Finish time (minutes)",
               show_legend=False)
     return fig

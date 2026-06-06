@@ -17,6 +17,7 @@ def results_tab():
         children=[
             html.H2("Round results"),
             html.P("Browse results for any round across all five championships. "
+                   "Pieces column contains the number of pieces completed by the competitor if they didn't finish in time."
                    "The sidebar shows a round summary and elimination funnel. "
                    "Click a puzzle thumbnail to view it full-screen. "
                    "Select individual competitors to compare their career trajectories below.",

@@ -42,7 +42,6 @@ def results_tab():
                             page_action="native",
                             sort_action="native",
                             sort_mode="multi",
-                            filter_action="native",
                             style_as_list_view=True,
                             style_table={"overflowX": "auto"},
                             style_cell={

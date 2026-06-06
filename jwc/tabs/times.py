@@ -265,10 +265,9 @@ def draw_puzzles(category, year, level, sort, selected):
     order = _ordered_labels(label_url, stats, sort)
     gallery = [thumb("puz-thumb", lb, lb, label_url[lb], lb == selected)
                for lb in order]
-    if len(label_url) < 2:
-        msg = ("No data at this level for this selection" if not label_url
-               else "Only one puzzle used at this level - nothing to compare")
-        return blank_fig(msg), blank_fig(), gallery
+    if not label_url:
+        return (blank_fig("No data at this level for this selection"),
+                blank_fig(), gallery)
     return (_violin_figure(df, order, selected),
             _completion_figure(order, stats, selected), gallery)
 
